@@ -1,7 +1,7 @@
-// All user-facing text lives here so Russian/English can be added as extra dictionaries later.
+// All user-facing text lives here.
 const uz = {
   today: 'Bugun', yesterday: 'Kecha', tomorrow: 'Ertaga',
-  navToday: 'Bugun', navHabits: 'Odatlar', navCalendar: 'Kalendar', navStats: 'Statistika',
+  navToday: 'Bugun', navHabits: 'Odatlar', navSettings: 'Sozlamalar', navStats: 'Statistika',
   completed: 'Bajarilgan', todo: 'Bajarilishi kerak', skipped: 'O‘tkazilgan', missed: 'Bajarilmagan',
   habitsDone: 'odat bajarildi', progress: 'Bugungi jarayon', dayProgress: 'Kun jarayoni',
   noHabitsTitle: 'Hali odatlar yo‘q', noHabitsText: 'Birinchi odatingizni qo‘shib, intizom yo‘lini boshlang.',
@@ -26,6 +26,23 @@ const uz = {
   unsaved: 'Saqlanmagan o‘zgarishlar', loading: 'Yuklanmoqda…', error: 'Xatolik yuz berdi', retry: 'Qayta urinish',
   openInTelegram: 'Ilovani Telegram orqali oching', openInTelegramText: 'Bu mini-ilova faqat Telegram botingiz orqali ishlaydi.',
   hello: 'Salom', allDone: 'Hammasi bajarildi. Zo‘r!', keepGoing: 'Davom eting!',
+  // sections
+  allSections: 'Hammasi', addSection: 'Bo‘lim qo‘shish', sectionName: 'Bo‘lim nomi', sectionNamePh: 'Masalan: Til o‘rganish', renameSection: 'Nomini o‘zgartirish',
+  deleteSection: 'Bo‘limni o‘chirish', deleteSectionTitle: 'Bo‘limni o‘chirasizmi?', deleteSectionText: 'Odatlar o‘chmaydi — ular bo‘limsiz qoladi.',
+  noSection: 'Bo‘limsiz', section: 'Bo‘lim', ok: 'OK', sectionEmpty: 'Bu bo‘limda bugun odat yo‘q', sectionEmptyText: 'Shu bo‘limga yangi odat qo‘shing.', addHabit: 'Odat qo‘shish',
+  moreOptions: 'Qo‘shimcha', lessOptions: 'Kamroq', calendarToggle: 'Oy kalendari', collapse: 'Yig‘ish',
+  // gamification
+  level: 'Daraja', levelTitles: ['Boshlovchi', 'O‘rganuvchi', 'Barqaror', 'Intizomli', 'Usta', 'Ustoz', 'Afsona'],
+  toNext: 'keyingi darajagacha', completions: 'bajarilish', daysInRow: 'kun ketma-ket',
+  achievements: 'Yutuqlar', unlocked: 'Ochilgan', locked: 'Yopiq', insights: 'Kuzatuv',
+  bestWeekday: 'Eng kuchli kun', weakWeekday: 'Eng zaif kun', needMoreData: 'Tahlil uchun kamida 2 hafta ma’lumot kerak.',
+  focus: 'Fokus taymer', focusStart: 'Boshlash', focusPause: 'Pauza', focusReset: 'Qayta', focusDone: 'Vaqt tugadi!', markDone: 'Bajarildi deb belgilash', minutes: 'daqiqa',
+  // settings
+  settings: 'Sozlamalar', remindersSetting: 'Odat eslatmalari', remindersHint: 'Har bir odat vaqtida botdan xabar keladi.',
+  morningSetting: 'Ertalabki reja (08:00)', morningHint: 'Kun boshida bugungi odatlar ro‘yxati.',
+  eveningSetting: 'Kechki xulosa (21:00)', eveningHint: 'Kun natijasi va bajarilmagan odatlar.',
+  timezoneLabel: 'Vaqt mintaqasi', timezoneAuto: 'Qurilmadan aniqlash', botSection: 'Telegram bot', 
+  authFailed: 'Kirib bo‘lmadi', reopen: 'Qayta ochish', code: 'Kod',
   weekdayShort: ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'],
   weekdayLong: ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'],
   months: ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'],

@@ -1,15 +1,15 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, CalendarDays, ListChecks, Repeat } from 'lucide-react';
+import { BarChart3, ListChecks, Repeat, Settings } from 'lucide-react';
 import clsx from 'clsx';
 import { t } from '@/lib/i18n';
 
 const NAV = [
   { href: '/today', label: t.navToday, Icon: ListChecks },
   { href: '/habits', label: t.navHabits, Icon: Repeat },
-  { href: '/calendar', label: t.navCalendar, Icon: CalendarDays },
   { href: '/stats', label: t.navStats, Icon: BarChart3 },
+  { href: '/settings', label: t.navSettings, Icon: Settings },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {

@@ -12,6 +12,7 @@ export type HabitDef = {
   endDate: string | null;
   reminderTime: string | null;
   archived: boolean;
+  sectionId?: number | null;
   schedules: ScheduleVersion[]; // sorted by effectiveFrom ascending
 };
 

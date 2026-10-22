@@ -1,6 +1,6 @@
 # Discipline OS
 
-Telegram Mini App: odatlar, kalendar, statistika, kunlik yozuvlar va Telegram bot (eslatmalar, `/today` orqali belgilash).
+Telegram Mini App: odatlar, **bo‘limlar (sections)**, oy kalendari (Bugun sahifasida), statistika va yutuqlar, fokus taymer, kunlik yozuvlar va Telegram bot (eslatmalar, ertalabki reja, kechki xulosa, tez qo‘shish).
 
 **Stack:** Next.js 15 · React 19 · TypeScript · Tailwind · Drizzle + PostgreSQL · grammY · Zod · Vitest
 
@@ -27,7 +27,7 @@ Telegram Mini App: odatlar, kalendar, statistika, kunlik yozuvlar va Telegram bo
 
 > Faqat **1 replika** ishlating (long polling). Bir xil token bilan ikkinchi bot jarayonini (masalan lokal kompyuterda) ishga tushirmang — Telegram `409 Conflict` qaytaradi.
 
-Barcha havolalar env'dan olinadi: bot tugmalari (`/`, `/calendar`, `/stats`), menyu tugmasi, eslatma xabarlaridagi tugma, Telegramdan tashqarida ko'rsatiladigan "Botni ochish" havolasi (`/api/config`).
+Barcha havolalar env'dan olinadi: bot tugmalari (`/`, `/habits`, `/stats`, `/settings`), menyu tugmasi, eslatma xabarlaridagi tugma, Telegramdan tashqarida ko'rsatiladigan "Botni ochish" havolasi (`/api/config`).
 
 ## Lokal ishga tushirish (Windows / PowerShell)
 
@@ -81,3 +81,24 @@ npm run db:import-sqlite -- ./data/discipline.db
 ```
 
 Skript bitta tranzaksiyada ishlaydi (xatoda hech narsa yozilmaydi), ID'larni saqlaydi, hisoblagichlarni (identity) davom ettiradi va qatorlar sonini solishtiradi. Maqsadli baza bo'sh bo'lmasa to'xtaydi (`--force` avval tozalaydi). SQLite fayli faqat o'qish rejimida ochiladi. Railway'dagi eski volume'dan faylni oldin yuklab oling (masalan `railway run` / volume backup orqali).
+
+
+## Yangi imkoniyatlar
+
+- **Bo‘limlar**: Bugun sahifasidagi `+` tugmasi bilan yarating ("Til", "Kitoblar"...). Har bir odat bitta bo‘limga tegishli; bo‘limni o‘chirsangiz odatlar saqlanadi.
+- **Bot**: `/add Kitob 21:00 #Til` yoki `+ Suv ichish 09:00` (tez qo‘shish), `/sections`, `/week`, `/streak`, `/motivation`, `/settings` (eslatma · 08:00 reja · 21:00 xulosa).
+- **Daraja va yutuqlar**: bajarilgan odatlar soniga qarab daraja, 9 ta yutuq nishoni, eng kuchli/zaif hafta kuni.
+- **Baza**: `0001_sections` migratsiyasi (yangi jadvallar + ustunlar) ishga tushganda avtomatik qo‘llanadi; mavjud ma’lumotlar o‘zgarmaydi.
+
+## "Telegram autentifikatsiyadan o‘tmadi" bo‘lsa
+
+Ilova xato kodini ko‘rsatadi:
+
+| Kod | Sabab | Yechim |
+|---|---|---|
+| `bad_signature` | Web servisdagi `BOT_TOKEN` ilovani ochgan bot tokeniga mos emas | Railway’da **web** va **bot** servislarida bir xil token; `/api/health` dagi `botId` bot ID’si bilan mos kelishi kerak |
+| `expired` | initData eskirgan (`TELEGRAM_AUTH_MAX_AGE`, standart 7 kun) | Ilovani botdan qayta oching |
+| `future_date` | Telefon vaqti noto‘g‘ri | Avtomatik sana/vaqtni yoqing |
+| `no_bot_token` | Serverda `BOT_TOKEN` yo‘q | O‘zgaruvchini qo‘shing |
+
+Token endi avtomatik tozalanadi (bo‘sh joy, qo‘shtirnoq, `bot` prefiksi) — Railway’da ko‘p uchraydigan xato shu edi.

@@ -15,6 +15,7 @@ const config: Config = {
         bad: '#ef6a6a',
       },
       borderRadius: { xl2: '1.25rem' },
+      keyframes: { slide: { '0%': { transform: 'translateX(-100%)' }, '100%': { transform: 'translateX(200%)' } } },
       fontFamily: {
         sans: ['ui-rounded', '"SF Pro Rounded"', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', 'sans-serif'],
       },

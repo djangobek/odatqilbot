@@ -1,18 +1,25 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Check, ChevronDown, SkipForward } from 'lucide-react';
+import { Check, ChevronDown, SkipForward, Timer } from 'lucide-react';
 import clsx from 'clsx';
 import { api, useApi } from '@/lib/api';
 import { t } from '@/lib/i18n';
 import { timeOf } from '@/lib/format';
+import { success, tap } from '@/lib/haptics';
+import { FocusTimer } from './FocusTimer';
 import type { DayItem } from '@/lib/stats';
 import type { DayResponse } from '@/server/queries';
 import { useMe } from './AuthProvider';
 
-type Props = { date: string; onChanged?: () => void; onCreate?: () => void; refreshKey?: number };
+/** 'all' = every habit, 'none' = habits without a section, number = one section. */
+export type SectionFilter = 'all' | 'none' | number;
+type Props = { date: string; onChanged?: () => void; onCreate?: () => void; onAllDone?: () => void; refreshKey?: number; section?: SectionFilter };
 
-export function DayView({ date, onChanged, onCreate, refreshKey = 0 }: Props) {
-  const { me, toast } = useMe();
+const matches = (f: SectionFilter, id: number | null) => f === 'all' || (f === 'none' ? id === null : id === f);
+
+export function DayView({ date, onChanged, onCreate, onAllDone, refreshKey = 0, section = 'all' }: Props) {
+  const { me, toast, sections } = useMe();
+  const [timerFor, setTimerFor] = useState<DayItem | null>(null);
   const { data, setData, error, loading, reload } = useApi<DayResponse>(`/api/day/${date}`);
   const [showDone, setShowDone] = useState(true);
   useEffect(() => { if (refreshKey) reload(); }, [refreshKey, reload]);
@@ -33,9 +40,18 @@ export function DayView({ date, onChanged, onCreate, refreshKey = 0 }: Props) {
 
   const { day } = data;
   const editable = date <= me.today;
-  const counted = day.completed + day.missed + day.pending;
-  const todo = day.items.filter((i) => i.status !== 'COMPLETED');
-  const done = day.items.filter((i) => i.status === 'COMPLETED');
+  // Progress is computed from the items of the selected section only (same rules as the server: see lib/stats.ts).
+  const items = day.items.filter((i) => matches(section, i.sectionId));
+  const isPast = date < me.today;
+  const nCompleted = items.filter((i) => i.status === 'COMPLETED').length;
+  const nSkipped = items.filter((i) => i.status === 'SKIPPED').length;
+  const rest = items.length - nCompleted - nSkipped;
+  const sum = { scheduled: items.length, completed: nCompleted, skipped: nSkipped, missed: isPast ? rest : 0, pending: isPast ? 0 : rest };
+  const counted = sum.completed + sum.missed + sum.pending;
+  const percent = counted ? Math.round((sum.completed / counted) * 100) : 0;
+  const todo = items.filter((i) => i.status !== 'COMPLETED');
+  const done = items.filter((i) => i.status === 'COMPLETED');
+  const sectionName = (id: number | null) => (section === 'all' && id !== null ? sections.find((x) => x.id === id)?.name ?? null : null);
 
   async function setStatus(item: DayItem, status: 'PENDING' | 'COMPLETED' | 'SKIPPED') {
     if (!editable) return;
@@ -43,16 +59,14 @@ export function DayView({ date, onChanged, onCreate, refreshKey = 0 }: Props) {
     // optimistic update; server stays the source of truth
     setData((d) => {
       if (!d) return d;
-      const items = d.day.items.map((i) => (i.habitId === item.habitId ? { ...i, status, completedAt: status === 'COMPLETED' ? Date.now() : null } : i));
-      const completed = items.filter((i) => i.status === 'COMPLETED').length;
-      const skipped = items.filter((i) => i.status === 'SKIPPED').length;
-      const rest = items.length - completed - skipped;
-      const isPast = date < me.today;
-      return { ...d, day: { ...d.day, items, completed, skipped, missed: isPast ? rest : 0, pending: isPast ? 0 : rest } };
+      const next = d.day.items.map((i) => (i.habitId === item.habitId ? { ...i, status, completedAt: status === 'COMPLETED' ? Date.now() : null } : i));
+      return { ...d, day: { ...d.day, items: next } };
     });
     try {
       await api('/api/records', { method: 'POST', body: { habitId: item.habitId, date, status } });
-      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light');
+      if (status === 'COMPLETED') success(); else tap();
+      // Last open habit of the day just got done -> celebrate.
+      if (status === 'COMPLETED' && date === me.today && day.items.every((i) => i.habitId === item.habitId || i.status !== 'PENDING')) onAllDone?.();
       reload();
       onChanged?.();
     } catch (e) {
@@ -61,7 +75,7 @@ export function DayView({ date, onChanged, onCreate, refreshKey = 0 }: Props) {
     }
   }
 
-  if (data.activeHabits === 0 && day.items.length === 0)
+  if (data.activeHabits === 0 && day.items.length === 0 && section === 'all')
     return (
       <div className="py-16 text-center">
         <p className="text-xl font-bold">{t.noHabitsTitle}</p>
@@ -72,29 +86,36 @@ export function DayView({ date, onChanged, onCreate, refreshKey = 0 }: Props) {
 
   return (
     <div>
-      {day.scheduled > 0 && (
+      {sum.scheduled > 0 && (
         <section className="mb-4 rounded-xl2 bg-surface p-4" aria-label={t.dayProgress}>
           <div className="flex items-end justify-between">
-            <p className="text-lg font-bold">{day.completed} / {counted} <span className="text-base font-medium text-muted">{t.habitsDone}</span></p>
-            <p className="text-2xl font-extrabold text-accent">{day.percent ?? 0}%</p>
+            <p className="text-lg font-bold">{sum.completed} / {counted} <span className="text-base font-medium text-muted">{t.habitsDone}</span></p>
+            <p className="text-2xl font-extrabold text-accent">{percent}%</p>
           </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-raised" role="progressbar" aria-valuenow={day.percent ?? 0} aria-valuemin={0} aria-valuemax={100}>
-            <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${day.percent ?? 0}%` }} />
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-raised" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full rounded-full bg-accent transition-all duration-500" style={{ width: `${percent}%` }} />
           </div>
-          {day.missed > 0 && <p className="mt-2 text-sm text-muted">{t.missed}: {day.missed}</p>}
-          {day.skipped > 0 && <p className="text-sm text-muted">{t.skipped}: {day.skipped}</p>}
-          {date === me.today && day.pending === 0 && day.completed > 0 && <p className="mt-2 text-sm text-ok">{t.allDone}</p>}
+          {sum.missed > 0 && <p className="mt-2 text-sm text-muted">{t.missed}: {sum.missed}</p>}
+          {sum.skipped > 0 && <p className="text-sm text-muted">{t.skipped}: {sum.skipped}</p>}
+          {date === me.today && sum.pending === 0 && sum.completed > 0 && <p className="mt-2 text-sm text-ok">{t.allDone}</p>}
         </section>
       )}
 
-      {day.scheduled === 0 && (
+      {sum.scheduled === 0 && section !== 'all' && (
+        <div className="py-12 text-center">
+          <p className="text-xl font-bold">{t.sectionEmpty}</p>
+          <p className="mx-auto mt-1 max-w-xs text-muted">{t.sectionEmptyText}</p>
+          {onCreate && <button onClick={onCreate} className="mt-5 rounded-full bg-accent px-6 py-3 font-bold text-black active:scale-95">{t.addHabit}</button>}
+        </div>
+      )}
+      {sum.scheduled === 0 && section === 'all' && (
         <div className="py-12 text-center">
           <p className="text-xl font-bold">{t.freeDay}</p>
           <p className="mt-1 text-muted">{t.freeDayText}</p>
         </div>
       )}
 
-      <ul className="space-y-2">{todo.map((i) => <Row key={i.habitId} item={i} date={date} editable={editable} tz={me.user.timezone} onSet={setStatus} />)}</ul>
+      <ul className="space-y-2">{todo.map((i) => <Row key={i.habitId} item={i} editable={editable} tz={me.user.timezone} onSet={setStatus} onTimer={setTimerFor} tag={sectionName(i.sectionId)} />)}</ul>
 
       {done.length > 0 && (
         <section className="mt-5">
@@ -102,16 +123,20 @@ export function DayView({ date, onChanged, onCreate, refreshKey = 0 }: Props) {
             {t.completed}
             <span className="flex items-center gap-1 text-muted">{done.length}<ChevronDown size={18} className={clsx('transition-transform', !showDone && '-rotate-90')} /></span>
           </button>
-          {showDone && <ul className="mt-1 space-y-2">{done.map((i) => <Row key={i.habitId} item={i} date={date} editable={editable} tz={me.user.timezone} onSet={setStatus} />)}</ul>}
+          {showDone && <ul className="mt-1 space-y-2">{done.map((i) => <Row key={i.habitId} item={i} editable={editable} tz={me.user.timezone} onSet={setStatus} onTimer={setTimerFor} tag={sectionName(i.sectionId)} />)}</ul>}
         </section>
       )}
 
       <NoteEditor date={date} initial={data.note} editable={editable} />
+      {timerFor && (
+        <FocusTimer name={timerFor.name} onClose={() => setTimerFor(null)}
+          onComplete={() => { const it = timerFor; setTimerFor(null); setStatus(it, 'COMPLETED'); }} />
+      )}
     </div>
   );
 }
 
-function Row({ item, editable, tz, onSet }: { item: DayItem; date: string; editable: boolean; tz: string; onSet: (i: DayItem, s: 'PENDING' | 'COMPLETED' | 'SKIPPED') => void }) {
+function Row({ item, editable, tz, onSet, onTimer, tag }: { item: DayItem; editable: boolean; tz: string; onSet: (i: DayItem, s: 'PENDING' | 'COMPLETED' | 'SKIPPED') => void; onTimer: (i: DayItem) => void; tag: string | null }) {
   const done = item.status === 'COMPLETED';
   const skipped = item.status === 'SKIPPED';
   return (
@@ -124,12 +149,16 @@ function Row({ item, editable, tz, onSet }: { item: DayItem; date: string; edita
       <div className="min-w-0 flex-1">
         <p className={clsx('truncate font-semibold', done && 'line-through')}>{item.icon && <span className="mr-1.5">{item.icon}</span>}{item.name}</p>
         <p className="truncate text-xs text-muted">
-          {[item.time, item.archived ? t.archive : null, skipped ? t.skipped : null, done && item.completedAt ? `${t.completionTime}: ${timeOf(item.completedAt, tz)}` : null, !done && !skipped && item.outcome === 'missed' ? t.missed : null].filter(Boolean).join(' · ') || item.description || ' '}
+          {[item.time, tag, item.archived ? t.archive : null, skipped ? t.skipped : null, done && item.completedAt ? `${t.completionTime}: ${timeOf(item.completedAt, tz)}` : null, !done && !skipped && item.outcome === 'missed' ? t.missed : null].filter(Boolean).join(' · ') || item.description || ' '}
         </p>
       </div>
+      {editable && !done && !skipped && (
+        <button onClick={() => onTimer(item)} aria-label={t.focus} title={t.focus}
+          className="grid h-10 w-10 place-items-center rounded-full text-muted hover:bg-raised active:scale-95"><Timer size={18} /></button>
+      )}
       {editable && !done && (
         <button onClick={() => onSet(item, skipped ? 'PENDING' : 'SKIPPED')} aria-label={skipped ? t.unskip : t.skip} title={skipped ? t.unskip : t.skip}
-          className={clsx('grid h-11 w-11 place-items-center rounded-full active:scale-95', skipped ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-raised')}>
+          className={clsx('grid h-10 w-10 place-items-center rounded-full active:scale-95', skipped ? 'bg-accent-soft text-accent' : 'text-muted hover:bg-raised')}>
           <SkipForward size={18} />
         </button>
       )}

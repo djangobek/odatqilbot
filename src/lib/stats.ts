@@ -36,6 +36,7 @@ export type DayItem = {
   description: string | null;
   time: string | null;
   archived: boolean;
+  sectionId: number | null;
   status: RecordStatus;
   outcome: Outcome;
   completedAt: number | null;
@@ -78,7 +79,7 @@ export function summarizeDay(date: string, today: string, habits: HabitDef[], re
     if (withItems) {
       items.push({
         habitId: h.id, name: h.name, icon: h.icon, category: h.category, description: h.description,
-        time: h.reminderTime, archived: h.archived, status: r?.status ?? 'PENDING', outcome,
+        time: h.reminderTime, archived: h.archived, sectionId: h.sectionId ?? null, status: r?.status ?? 'PENDING', outcome,
         completedAt: r?.completedAt ?? null, note: r?.note ?? null,
       });
     }

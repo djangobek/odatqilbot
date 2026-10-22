@@ -13,6 +13,7 @@ const habitBase = z.object({
   category: z.preprocess(emptyToNull, z.string().trim().max(40).nullish()),
   startDate: dateStr,
   endDate: z.preprocess(emptyToNull, dateStr.nullish()),
+  sectionId: z.preprocess(emptyToNull, z.number().int().positive().nullish()),
   weekdays: z.number().int().min(1, 'Kamida bitta kun tanlang').max(127),
   reminderTime: z.preprocess(emptyToNull, z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Vaqt noto‘g‘ri').nullish()),
 });
@@ -50,3 +51,14 @@ export const telegramAuthSchema = z.object({
 });
 
 export type HabitInput = z.infer<typeof createHabitSchema>;
+
+export const sectionSchema = z.object({
+  name: z.string().trim().min(1, 'Bo‘lim nomini kiriting').max(30, 'Nom juda uzun (30 belgigacha)'),
+});
+
+export const settingsSchema = z.object({
+  remindersEnabled: z.boolean().optional(),
+  morningDigest: z.boolean().optional(),
+  eveningDigest: z.boolean().optional(),
+  timezone: z.string().refine(isValidTimezone, 'Vaqt mintaqasi noto‘g‘ri').optional(),
+});

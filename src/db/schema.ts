@@ -20,10 +20,26 @@ export const users = pgTable(
     language: text('language').notNull().default('uz'),
     timezone: text('timezone').notNull().default('Asia/Tashkent'),
     remindersEnabled: boolean('reminders_enabled').notNull().default(true),
+    morningDigest: boolean('morning_digest').notNull().default(false),
+    eveningDigest: boolean('evening_digest').notNull().default(false),
     createdAt: epochMs('created_at').notNull(),
     updatedAt: epochMs('updated_at').notNull(),
   },
   (t) => [uniqueIndex('users_telegram_id_unique').on(t.telegramId)],
+);
+
+/** User-defined groups of habits ("Language", "Books", ...). Deleting a section keeps its habits (section_id -> null). */
+export const sections = pgTable(
+  'sections',
+  {
+    id: id(),
+    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    position: integer('position').notNull().default(0),
+    createdAt: epochMs('created_at').notNull(),
+    updatedAt: epochMs('updated_at').notNull(),
+  },
+  (t) => [index('sections_user_idx').on(t.userId)],
 );
 
 export const habits = pgTable(
@@ -38,6 +54,7 @@ export const habits = pgTable(
     startDate: text('start_date').notNull(),
     endDate: text('end_date'),
     reminderTime: text('reminder_time'),
+    sectionId: integer('section_id').references(() => sections.id, { onDelete: 'set null' }),
     archived: boolean('archived').notNull().default(false),
     createdAt: epochMs('created_at').notNull(),
     updatedAt: epochMs('updated_at').notNull(),
@@ -109,6 +126,20 @@ export const reminderDeliveries = pgTable(
   (t) => [uniqueIndex('reminder_deliveries_habit_date_time_unique').on(t.habitId, t.date, t.reminderTime)],
 );
 
+/** One row per (user, kind, local date): makes morning/evening digests idempotent across bot restarts. */
+export const digestDeliveries = pgTable(
+  'digest_deliveries',
+  {
+    id: id(),
+    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['morning', 'evening'] }).notNull(),
+    date: text('date').notNull(),
+    sentAt: epochMs('sent_at').notNull(),
+  },
+  (t) => [uniqueIndex('digest_deliveries_user_kind_date_unique').on(t.userId, t.kind, t.date)],
+);
+
 export type User = typeof users.$inferSelect;
+export type SectionRow = typeof sections.$inferSelect;
 export type HabitRow = typeof habits.$inferSelect;
 export type RecordRow = typeof habitRecords.$inferSelect;

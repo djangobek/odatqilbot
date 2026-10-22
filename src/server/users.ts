@@ -32,3 +32,16 @@ export async function setTimezone(db: Db, userId: number, timezone: string, now 
 export async function setReminders(db: Db, userId: number, enabled: boolean, now = Date.now()): Promise<void> {
   await db.update(users).set({ remindersEnabled: enabled, updatedAt: now }).where(eq(users.id, userId));
 }
+
+export async function updateSettings(
+  db: Db, userId: number,
+  patch: { remindersEnabled?: boolean; morningDigest?: boolean; eveningDigest?: boolean; timezone?: string }, now = Date.now(),
+): Promise<User> {
+  const set: Partial<User> = { updatedAt: now };
+  if (patch.remindersEnabled !== undefined) set.remindersEnabled = patch.remindersEnabled;
+  if (patch.morningDigest !== undefined) set.morningDigest = patch.morningDigest;
+  if (patch.eveningDigest !== undefined) set.eveningDigest = patch.eveningDigest;
+  if (patch.timezone !== undefined && isValidTimezone(patch.timezone)) set.timezone = patch.timezone;
+  const [row] = await db.update(users).set(set).where(eq(users.id, userId)).returning();
+  return row;
+}

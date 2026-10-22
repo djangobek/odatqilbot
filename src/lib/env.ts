@@ -51,6 +51,21 @@ export function botLink(env: Env = process.env): string | undefined {
   return name ? `https://t.me/${name}` : undefined;
 }
 
+/**
+ * BOT_TOKEN exactly as Telegram expects it. Hosting dashboards often leave a trailing newline/space,
+ * wrap the value in quotes or the person pastes "bot123:ABC" (from an API URL). Any of those silently breaks
+ * the initData signature check, so the web app and the bot both read the token through here.
+ */
+export function getBotToken(env: Env = process.env): string | undefined {
+  let v = clean(env.BOT_TOKEN);
+  if (!v) return undefined;
+  v = v.replace(/^['"`]+|['"`]+$/g, '').trim().replace(/^bot(?=\d+:)/i, '');
+  return v || undefined;
+}
+
+/** The numeric part before ":" is the public bot id (safe to show; useful to spot a wrong token). */
+export const botIdOf = (token: string | undefined) => token?.split(':')[0] ?? null;
+
 export const supportLink = (env: Env = process.env) => normalizeUrl(env.SUPPORT_URL);
 export const channelLink = (env: Env = process.env) => normalizeUrl(env.CHANNEL_URL);
 
@@ -72,7 +87,7 @@ export const MIN_SECRET_LENGTH = 32;
 export function validateProductionEnv(env: Env = process.env): string[] {
   const problems: string[] = [];
   if (!clean(env.DATABASE_URL)) problems.push('DATABASE_URL is missing (PostgreSQL connection string; on Railway: ${{Postgres.DATABASE_URL}}).');
-  if (!clean(env.BOT_TOKEN)) problems.push('BOT_TOKEN is missing (create a bot with @BotFather).');
+  if (!getBotToken(env)) problems.push('BOT_TOKEN is missing (create a bot with @BotFather).');
   const url = resolveWebAppUrl(env);
   if (!url) problems.push('WEB_APP_URL is missing (or enable a Railway public domain so RAILWAY_PUBLIC_DOMAIN is set).');
   else if (!url.startsWith('https://')) problems.push('WEB_APP_URL must be an https:// URL.');

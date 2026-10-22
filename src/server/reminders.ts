@@ -61,7 +61,7 @@ export async function findDueReminders(db: Db, now = new Date(), catchUp = CATCH
     const h = row.habit;
     const def: HabitDef = {
       id: h.id, name: h.name, description: h.description, icon: h.icon, category: h.category,
-      startDate: h.startDate, endDate: h.endDate, reminderTime: h.reminderTime, archived: h.archived,
+      startDate: h.startDate, endDate: h.endDate, reminderTime: h.reminderTime, archived: h.archived, sectionId: h.sectionId,
       schedules: schedules.filter((s) => s.habitId === h.id).sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom)),
     };
     if (!isScheduled(def, date)) continue;

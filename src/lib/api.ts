@@ -18,7 +18,7 @@ export const setToken = (t: string) => {
 export const setReauth = (fn: (() => Promise<boolean>) | null) => { reauth = fn; };
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  constructor(public status: number, message: string, public code?: string) { super(message); }
 }
 
 type Opts = { method?: string; body?: unknown; auth?: boolean };
@@ -42,7 +42,10 @@ export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
   let r = await request<T>(path, opts);
   // Session expired while the app was open: renew once and retry.
   if (r.status === 401 && opts.auth !== false && reauth && (await reauth())) r = await request<T>(path, opts);
-  if (!r.ok) throw new ApiError(r.status, (r.data as { error?: string }).error ?? 'Xatolik');
+  if (!r.ok) {
+    const d = r.data as { error?: string; code?: string };
+    throw new ApiError(r.status, d.error ?? 'Xatolik', d.code);
+  }
   return r.data;
 }
 

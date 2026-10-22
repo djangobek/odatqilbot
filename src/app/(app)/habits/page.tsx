@@ -12,7 +12,7 @@ import { t } from '@/lib/i18n';
 import { maskAt, type HabitDef } from '@/lib/schedule';
 
 export default function HabitsPage() {
-  const { me, toast } = useMe();
+  const { me, toast, sections } = useMe();
   const { data, error, loading, reload } = useApi<{ habits: HabitDef[] }>('/api/habits');
   const [tab, setTab] = useState<'active' | 'archive'>('active');
   const [editing, setEditing] = useState<HabitDef | 'new' | null>(null);
@@ -20,6 +20,12 @@ export default function HabitsPage() {
 
   const list = (data?.habits ?? []).filter((h) => (tab === 'active' ? !h.archived : h.archived))
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Group by section (in the user's order); habits without a section go last.
+  const groups = [
+    ...sections.map((x) => ({ key: String(x.id), title: x.name, items: list.filter((h) => h.sectionId === x.id) })),
+    { key: 'none', title: t.noSection, items: list.filter((h) => !h.sectionId || !sections.some((x) => x.id === h.sectionId)) },
+  ].filter((g) => g.items.length > 0);
 
   async function archive(h: HabitDef, archived: boolean) {
     try { await api(`/api/habits/${h.id}`, { method: 'PATCH', body: { archived } }); toast(t.saved); reload(); }
@@ -59,32 +65,37 @@ export default function HabitsPage() {
         </div>
       )}
 
-      <ul className="space-y-2">
-        {list.map((h) => {
-          const mask = maskAt(h, h.archived ? me.today : h.startDate > me.today ? h.startDate : me.today);
-          const lastMask = [...h.schedules].reverse().find((s) => s.weekdays > 0)?.weekdays ?? mask;
-          return (
-            <li key={h.id} className="flex items-center gap-3 rounded-2xl bg-surface p-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-raised text-xl">{h.icon ?? '•'}</span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{h.name}</p>
-                <p className="truncate text-xs text-muted">{[scheduleLabel(h.archived ? lastMask : mask), h.reminderTime, h.category].filter(Boolean).join(' · ')}</p>
-              </div>
-              {tab === 'active' ? (
-                <>
-                  <IconBtn label={t.edit} onClick={() => setEditing(h)}><Pencil size={18} /></IconBtn>
-                  <IconBtn label={t.archiveAction} onClick={() => archive(h, true)}><Archive size={18} /></IconBtn>
-                </>
-              ) : (
-                <>
-                  <IconBtn label={t.restore} onClick={() => archive(h, false)}><ArchiveRestore size={18} /></IconBtn>
-                  <IconBtn label={t.remove} onClick={() => setDeleting(h)} danger><Trash2 size={18} /></IconBtn>
-                </>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      {groups.map((g) => (
+        <section key={g.key} className="mb-5">
+          {groups.length > 1 && <h2 className="mb-2 px-2 text-sm font-semibold uppercase tracking-wide text-muted">{g.title} <span className="text-muted/60">{g.items.length}</span></h2>}
+          <ul className="space-y-2">
+            {g.items.map((h) => {
+              const mask = maskAt(h, h.archived ? me.today : h.startDate > me.today ? h.startDate : me.today);
+              const lastMask = [...h.schedules].reverse().find((s) => s.weekdays > 0)?.weekdays ?? mask;
+              return (
+                <li key={h.id} className="flex items-center gap-3 rounded-2xl bg-surface p-3">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-raised text-xl">{h.icon ?? '•'}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{h.name}</p>
+                    <p className="truncate text-xs text-muted">{[scheduleLabel(h.archived ? lastMask : mask), h.reminderTime, h.category].filter(Boolean).join(' · ')}</p>
+                  </div>
+                  {tab === 'active' ? (
+                    <>
+                      <IconBtn label={t.edit} onClick={() => setEditing(h)}><Pencil size={18} /></IconBtn>
+                      <IconBtn label={t.archiveAction} onClick={() => archive(h, true)}><Archive size={18} /></IconBtn>
+                    </>
+                  ) : (
+                    <>
+                      <IconBtn label={t.restore} onClick={() => archive(h, false)}><ArchiveRestore size={18} /></IconBtn>
+                      <IconBtn label={t.remove} onClick={() => setDeleting(h)} danger><Trash2 size={18} /></IconBtn>
+                    </>
+                  )}
+                </li>
+              );
+    })}
+          </ul>
+        </section>
+      ))}
 
       <Fab onClick={() => setEditing('new')} label={t.newHabit} />
       {editing && <HabitSheet habit={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}

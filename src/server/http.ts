@@ -11,7 +11,7 @@ import { rateLimit } from './rate-limit';
 export type Ctx<P> = { req: NextRequest; db: Db; user: User; params: P; today: string };
 
 export function errorResponse(e: unknown) {
-  if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status });
+  if (e instanceof HttpError) return NextResponse.json({ error: e.message, ...(e.code ? { code: e.code } : {}) }, { status: e.status });
   if (e instanceof ZodError) return NextResponse.json({ error: e.issues[0]?.message ?? 'Ma’lumot noto‘g‘ri' }, { status: 400 });
   console.error('[api] unexpected error:', e instanceof Error ? e.message : 'unknown');
   return NextResponse.json({ error: 'Serverda xatolik yuz berdi' }, { status: 500 });
