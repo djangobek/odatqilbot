@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html, body { background: #000; color: #f2f2f7; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+body { font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; overscroll-behavior-y: none; -webkit-font-smoothing: antialiased; }
+button, [role='tab'] { touch-action: manipulation; }
+input, textarea, select { font-size: 16px; } /* prevents iOS focus-zoom */
+:focus-visible { outline: 2px solid #f08a31; outline-offset: 2px; border-radius: 8px; }
+::selection { background: #f08a3155; }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+@keyframes sheet { from { transform: translateY(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes pop { 0% { transform: scale(.85) } 60% { transform: scale(1.12) } 100% { transform: scale(1) } }
+@keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+.sheet-in { animation: sheet .22s ease-out; }
+.pop { animation: pop .25s ease-out; }
+.skeleton { border-radius: 1rem; background: linear-gradient(90deg, #1c1c1e 25%, #2a2a2d 50%, #1c1c1e 75%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
