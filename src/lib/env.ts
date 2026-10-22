@@ -66,6 +66,12 @@ export function getBotToken(env: Env = process.env): string | undefined {
 /** The numeric part before ":" is the public bot id (safe to show; useful to spot a wrong token). */
 export const botIdOf = (token: string | undefined) => token?.split(':')[0] ?? null;
 
+/** Telegram ids (comma/space separated) that are always admins. Set ADMIN_TELEGRAM_IDS=123456789,987654321 */
+export function adminTelegramIds(env: Env = process.env): number[] {
+  return (clean(env.ADMIN_TELEGRAM_IDS) ?? '').split(/[\s,;]+/).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0);
+}
+export const isSuperAdmin = (telegramId: number, env: Env = process.env) => adminTelegramIds(env).includes(telegramId);
+
 export const supportLink = (env: Env = process.env) => normalizeUrl(env.SUPPORT_URL);
 export const channelLink = (env: Env = process.env) => normalizeUrl(env.CHANNEL_URL);
 
@@ -94,6 +100,7 @@ export function validateProductionEnv(env: Env = process.env): string[] {
   const secret = clean(env.SESSION_SECRET);
   if (!secret) problems.push('SESSION_SECRET is missing (openssl rand -hex 32).');
   else if (secret.length < MIN_SECRET_LENGTH) problems.push(`SESSION_SECRET must be at least ${MIN_SECRET_LENGTH} characters.`);
+  if (adminTelegramIds(env).length === 0) problems.push('ADMIN_TELEGRAM_IDS is missing (your numeric Telegram id, e.g. from @userinfobot): without it nobody can open the admin panel.');
   if (clean(env.ALLOW_DEV_LOGIN) === 'true') problems.push('ALLOW_DEV_LOGIN=true must not be set in production.');
   return problems;
 }

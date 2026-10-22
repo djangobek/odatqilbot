@@ -22,10 +22,16 @@ export const users = pgTable(
     remindersEnabled: boolean('reminders_enabled').notNull().default(true),
     morningDigest: boolean('morning_digest').notNull().default(false),
     eveningDigest: boolean('evening_digest').notNull().default(false),
+    role: text('role', { enum: ['user', 'admin'] }).notNull().default('user'),
+    banned: boolean('banned').notNull().default(false),
+    banReason: text('ban_reason'),
+    /** Set when Telegram answers 403 (user blocked the bot): broadcasts skip these users. */
+    botBlocked: boolean('bot_blocked').notNull().default(false),
+    lastSeenAt: epochMs('last_seen_at'),
     createdAt: epochMs('created_at').notNull(),
     updatedAt: epochMs('updated_at').notNull(),
   },
-  (t) => [uniqueIndex('users_telegram_id_unique').on(t.telegramId)],
+  (t) => [uniqueIndex('users_telegram_id_unique').on(t.telegramId), index('users_last_seen_idx').on(t.lastSeenAt)],
 );
 
 /** User-defined groups of habits ("Language", "Books", ...). Deleting a section keeps its habits (section_id -> null). */
@@ -139,7 +145,68 @@ export const digestDeliveries = pgTable(
   (t) => [uniqueIndex('digest_deliveries_user_kind_date_unique').on(t.userId, t.kind, t.date)],
 );
 
+/** Mass messages written in the admin panel and delivered by the bot process (queue + progress). */
+export const broadcasts = pgTable(
+  'broadcasts',
+  {
+    id: id(),
+    text: text('text').notNull(),
+    audience: text('audience').notNull().default('all'), // all | active | inactive | admins | user:<id>
+    buttonLabel: text('button_label'),
+    buttonUrl: text('button_url'),
+    status: text('status', { enum: ['scheduled', 'queued', 'sending', 'done', 'cancelled'] }).notNull().default('queued'),
+    total: integer('total').notNull().default(0),
+    sent: integer('sent').notNull().default(0),
+    failed: integer('failed').notNull().default(0),
+    blocked: integer('blocked').notNull().default(0),
+    createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+    scheduledAt: epochMs('scheduled_at'),
+    startedAt: epochMs('started_at'),
+    finishedAt: epochMs('finished_at'),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [index('broadcasts_status_idx').on(t.status)],
+);
+
+/** One row per recipient: the send loop is resumable and never sends twice. */
+export const broadcastRecipients = pgTable(
+  'broadcast_recipients',
+  {
+    id: id(),
+    broadcastId: integer('broadcast_id').notNull().references(() => broadcasts.id, { onDelete: 'cascade' }),
+    userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    telegramId: bigint('telegram_id', { mode: 'number' }).notNull(),
+    status: text('status', { enum: ['pending', 'sent', 'failed', 'blocked'] }).notNull().default('pending'),
+    error: text('error'),
+    sentAt: epochMs('sent_at'),
+  },
+  (t) => [uniqueIndex('broadcast_recipients_unique').on(t.broadcastId, t.userId), index('broadcast_recipients_pending_idx').on(t.broadcastId, t.status)],
+);
+
+/** Who did what in the admin panel. */
+export const auditLog = pgTable(
+  'audit_log',
+  {
+    id: id(),
+    adminId: integer('admin_id').references(() => users.id, { onDelete: 'set null' }),
+    adminName: text('admin_name').notNull(),
+    action: text('action').notNull(),
+    target: text('target'),
+    detail: text('detail'),
+    createdAt: epochMs('created_at').notNull(),
+  },
+  (t) => [index('audit_log_created_idx').on(t.createdAt)],
+);
+
+/** Small key/value store for global switches (maintenance mode, announcement banner). */
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: epochMs('updated_at').notNull(),
+});
+
 export type User = typeof users.$inferSelect;
+export type BroadcastRow = typeof broadcasts.$inferSelect;
 export type SectionRow = typeof sections.$inferSelect;
 export type HabitRow = typeof habits.$inferSelect;
 export type RecordRow = typeof habitRecords.$inferSelect;

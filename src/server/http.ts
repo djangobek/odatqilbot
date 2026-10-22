@@ -7,6 +7,9 @@ import { HttpError } from './errors';
 import { verifyToken } from './session';
 import { authenticateUser } from './users';
 import { rateLimit } from './rate-limit';
+import { getSettings } from './admin';
+import { users } from '../db/schema';
+import { eq } from 'drizzle-orm';
 
 export type Ctx<P> = { req: NextRequest; db: Db; user: User; params: P; today: string };
 
@@ -17,20 +20,32 @@ export function errorResponse(e: unknown) {
   return NextResponse.json({ error: 'Serverda xatolik yuz berdi' }, { status: 500 });
 }
 
+const SEEN_EVERY_MS = 60_000;
+
 export async function authenticate(db: Db, req: NextRequest): Promise<User> {
   const h = req.headers.get('authorization');
   if (!h?.startsWith('Bearer ')) throw new HttpError(401, 'Kirish talab qilinadi');
   const user = await authenticateUser(db, verifyToken(h.slice(7)));
   if (!user) throw new HttpError(401, 'Foydalanuvchi topilmadi');
+  if (user.banned) throw new HttpError(403, user.banReason ? `Hisobingiz bloklangan: ${user.banReason}` : 'Hisobingiz bloklangan', 'banned');
+  const now = Date.now();
+  if (!user.lastSeenAt || now - user.lastSeenAt > SEEN_EVERY_MS) {
+    await db.update(users).set({ lastSeenAt: now }).where(eq(users.id, user.id)).catch(() => {});
+    user.lastSeenAt = now;
+  }
   return user;
 }
 
-/** Wraps a handler: server-side auth, params, validation errors and safe error messages. */
-export function protectedRoute<P = Record<string, never>>(fn: (c: Ctx<P>) => unknown | Promise<unknown>) {
+function wrap<P>(fn: (c: Ctx<P>) => unknown | Promise<unknown>, adminOnly: boolean) {
   return async (req: NextRequest, ctx: { params: Promise<P> }) => {
     try {
       const db = getDb();
       const user = await authenticate(db, req);
+      if (adminOnly && user.role !== 'admin') throw new HttpError(403, 'Faqat adminlar uchun', 'forbidden');
+      if (user.role !== 'admin') {
+        const s = await getSettings(db);
+        if (s.maintenance) throw new HttpError(503, s.maintenanceMessage, 'maintenance');
+      }
       const params = await ctx.params;
       rateLimit(`user:${user.id}`, 300, 60_000);
       const body = await fn({ req, db, user, params, today: todayIn(user.timezone) });
@@ -39,6 +54,16 @@ export function protectedRoute<P = Record<string, never>>(fn: (c: Ctx<P>) => unk
       return errorResponse(e);
     }
   };
+}
+
+/** Wraps a handler: server-side auth, params, validation errors and safe error messages. */
+export function protectedRoute<P = Record<string, never>>(fn: (c: Ctx<P>) => unknown | Promise<unknown>) {
+  return wrap<P>(fn, false);
+}
+
+/** Same, but the role is re-read from the database on every call: demoting an admin takes effect immediately. */
+export function adminRoute<P = Record<string, never>>(fn: (c: Ctx<P>) => unknown | Promise<unknown>) {
+  return wrap<P>(fn, true);
 }
 
 const MAX_BODY_BYTES = 64 * 1024;

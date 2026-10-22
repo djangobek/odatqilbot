@@ -102,3 +102,16 @@ Ilova xato kodini ko‘rsatadi:
 | `no_bot_token` | Serverda `BOT_TOKEN` yo‘q | O‘zgaruvchini qo‘shing |
 
 Token endi avtomatik tozalanadi (bo‘sh joy, qo‘shtirnoq, `bot` prefiksi) — Railway’da ko‘p uchraydigan xato shu edi.
+
+
+## Admin panel
+
+Set `ADMIN_TELEGRAM_IDS=<your numeric Telegram id>` (ask @userinfobot; several ids separated by commas) on the **web and bot** services, then run `npm run db:migrate` (migration `0002_admin`).
+
+* An admin who opens the Mini App lands on `/admin` automatically and can switch to the regular user view (and back) with one tap.
+* **Boshqaruv** – users, DAU/WAU/MAU, 30-day charts, top habits, feature usage.
+* **Foydalanuvchilar** – search, filters, details, ban/unban, promote/demote, delete, direct message, CSV export.
+* **Xabarlar** – mass messages (audiences, `{name}`, **bold**/__italic__, button, scheduling, live progress, cancel). Messages are delivered by the bot process (`npm run bot`), rate-limited, resumable after restarts; users who blocked the bot are detected automatically.
+* **Tizim** – maintenance mode, in-app announcement banner, health, audit log of every admin action.
+
+Admin API lives under `/api/admin/*`; the role is re-checked in the database on every request.

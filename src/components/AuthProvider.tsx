@@ -4,8 +4,9 @@ import { ApiError, api, setReauth, setToken } from '@/lib/api';
 import { t } from '@/lib/i18n';
 
 export type Me = {
-  user: { id: number; displayName: string; timezone: string; language: string; remindersEnabled: boolean; morningDigest: boolean; eveningDigest: boolean };
+  user: { id: number; displayName: string; timezone: string; language: string; remindersEnabled: boolean; morningDigest: boolean; eveningDigest: boolean; role: 'user' | 'admin' };
   today: string;
+  announcement?: string | null;
 };
 export type Section = { id: number; name: string; position: number };
 type Ctx = {

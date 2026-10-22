@@ -11,6 +11,7 @@ import { createHabit } from '../server/habits';
 import { createSection, listSections, type SectionDto } from '../server/sections';
 import { claimDigest, findDueDigests, pruneDigests, releaseDigest, type DueDigest } from '../server/digests';
 import { setReminders, setTimezone, updateSettings, upsertTelegramUser } from '../server/users';
+import { broadcastStatus, claimNext, finishBroadcast, markRecipient, markUserBlocked, nextBatch, refreshCounts, renderBroadcast } from '../server/broadcasts';
 import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { HttpError } from '../server/errors';
@@ -64,10 +65,21 @@ function homeKeyboard() {
 
 async function ensure(ctx: Context) {
   if (!ctx.from || ctx.from.is_bot) return null;
-  return await upsertTelegramUser(db, {
+  const user = await upsertTelegramUser(db, {
     id: ctx.from.id, first_name: ctx.from.first_name, last_name: ctx.from.last_name,
     username: ctx.from.username, language_code: ctx.from.language_code,
   });
+  if (user.banned) {
+    // Blocked by an admin: no commands, no buttons.
+    if (ctx.callbackQuery) await ctx.answerCallbackQuery({ text: 'Hisobingiz bloklangan', show_alert: true }).catch(() => {});
+    else await ctx.reply('🚫 Hisobingiz bloklangan.').catch(() => {});
+    return null;
+  }
+  if (user.botBlocked) {
+    // The person is talking to the bot again, so broadcasts can reach them.
+    await db.update(users).set({ botBlocked: false, updatedAt: Date.now() }).where(eq(users.id, user.id));
+  }
+  return user;
 }
 
 type UserRow = typeof users.$inferSelect;
@@ -480,6 +492,57 @@ async function scanDigests() {
   }
 }
 
+/* ---------- broadcasts (written in the admin panel) ---------- */
+
+let casting = false;
+const BATCH = 25;
+
+async function scanBroadcasts() {
+  if (casting || Date.now() < pausedUntil) return;
+  casting = true;
+  try {
+    const b = await claimNext(db);
+    if (!b) return;
+    const kb = new InlineKeyboard();
+    if (b.buttonLabel && b.buttonUrl) {
+      if (b.buttonUrl === 'app') { const u = webAppLink(); if (u) kb.webApp(b.buttonLabel, u); }
+      else kb.url(b.buttonLabel, b.buttonUrl);
+    }
+    const markup = nonEmpty(kb);
+    console.log(`[broadcast] #${b.id} started (${b.total} recipients)`);
+    outer: while (!stopped) {
+      const batch = await nextBatch(db, b.id, BATCH);
+      if (!batch.length) { await refreshCounts(db, b.id); await finishBroadcast(db, b.id); console.log(`[broadcast] #${b.id} finished`); break; }
+      for (const r of batch) {
+        try {
+          await bot.api.sendMessage(r.telegramId, renderBroadcast(b.text, r.name), { ...HTML, reply_markup: markup });
+          await markRecipient(db, r.rid, 'sent');
+        } catch (e) {
+          if (e instanceof GrammyError && (e.error_code === 403 || (e.error_code === 400 && /chat not found/i.test(e.description)))) {
+            await markRecipient(db, r.rid, 'blocked', e.description);
+            await markUserBlocked(db, r.userId);
+          } else if (e instanceof GrammyError && e.error_code === 429) {
+            // Leave this recipient pending; the next scan resumes exactly here.
+            pausedUntil = Date.now() + (e.parameters?.retry_after ?? 30) * 1000;
+            console.warn(`[broadcast] rate limited; pausing until ${new Date(pausedUntil).toISOString()}`);
+            await refreshCounts(db, b.id);
+            break outer;
+          } else {
+            await markRecipient(db, r.rid, 'failed', e instanceof Error ? e.message : 'unknown');
+          }
+        }
+        await sleep(SEND_GAP_MS);
+      }
+      await refreshCounts(db, b.id);
+      if ((await broadcastStatus(db, b.id)) !== 'sending') { console.log(`[broadcast] #${b.id} stopped (cancelled)`); break; }
+    }
+  } catch (e) {
+    console.error('[broadcast] failed:', e instanceof Error ? e.message : e);
+  } finally {
+    casting = false;
+  }
+}
+
 let stopped = false;
 function loop(fn: () => Promise<void>, everyMs: number) {
   const run = async () => {
@@ -523,6 +586,7 @@ async function main() {
 
   loop(scanReminders, SCAN_EVERY_MS);
   loop(scanDigests, 60_000);
+  loop(scanBroadcasts, 3_000);
   loop(maintenance, 6 * 3_600_000);
 
   await bot.start({ allowed_updates: ['message', 'callback_query'], onStart: () => console.log('[bot] polling started') });

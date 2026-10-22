@@ -1,9 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, ListChecks, Repeat, Settings } from 'lucide-react';
+import { BarChart3, ListChecks, Repeat, Settings, ShieldCheck, Megaphone } from 'lucide-react';
 import clsx from 'clsx';
 import { t } from '@/lib/i18n';
+import { useMe } from '@/components/AuthProvider';
+import { useEnterAdmin } from '@/components/AdminGate';
 
 const NAV = [
   { href: '/today', label: t.navToday, Icon: ListChecks },
@@ -14,6 +16,9 @@ const NAV = [
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const { me } = useMe();
+  const isAdmin = me.user.role === 'admin';
+  const enterAdminView = useEnterAdmin();
   return (
     <div className="min-h-dvh md:pl-60">
       <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col gap-1 border-r border-line p-4 md:flex">
@@ -29,7 +34,19 @@ export function Shell({ children }: { children: React.ReactNode }) {
         })}
       </aside>
 
-      <main className="mx-auto max-w-2xl px-4 pb-40 pt-[max(env(safe-area-inset-top),1rem)] md:pb-16">{children}</main>
+      <main className="mx-auto max-w-2xl px-4 pb-40 pt-[max(env(safe-area-inset-top),1rem)] md:pb-16">
+        {me.announcement && (
+          <div role="status" className="mb-4 flex items-start gap-3 rounded-xl2 border border-accent/30 bg-accent-soft px-4 py-3 text-sm">
+            <Megaphone size={18} className="mt-0.5 shrink-0 text-accent" /><p className="min-w-0 break-words">{me.announcement}</p>
+          </div>
+        )}
+        {isAdmin && (
+          <button onClick={enterAdminView} className="mb-4 flex w-full items-center justify-center gap-2 rounded-full border border-accent/30 bg-accent-soft py-2 text-sm font-semibold text-accent active:scale-[.98] md:hidden">
+            <ShieldCheck size={16} /> Admin panelga qaytish
+          </button>
+        )}
+        {children}
+      </main>
 
       <nav aria-label={t.mainNav} className="fixed inset-x-0 bottom-0 z-30 flex justify-center px-6 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:hidden">
         <ul className="flex w-full max-w-sm justify-between rounded-full border border-line bg-[#141414]/95 p-1.5 shadow-lg shadow-black/60 backdrop-blur">
