@@ -50,5 +50,38 @@ const uz = {
 } as const;
 
 export type Dict = typeof uz;
-export const dict: Dict = uz; // add `ru`, `en` and a selector here later
-export const t = dict;
+
+// Russian UI copy. Keys not listed here deliberately fall back to Uzbek during gradual content rollout.
+const ru: Partial<Record<keyof Dict, string | readonly string[]>> = {
+  today:'Сегодня', yesterday:'Вчера', tomorrow:'Завтра', navToday:'Сегодня', navHabits:'Привычки', navSettings:'Настройки', navStats:'Статистика',
+  completed:'Выполнено', todo:'Нужно выполнить', skipped:'Пропущено', missed:'Не выполнено', habitsDone:'привычек выполнено', progress:'Прогресс за сегодня', dayProgress:'Прогресс дня',
+  noHabitsTitle:'Пока нет привычек', noHabitsText:'Добавьте первую привычку и начните путь к дисциплине.', createFirst:'Создать первую привычку', freeDay:'На этот день планов нет', freeDayText:'Привычек не запланировано. Отдохните.',
+  newHabit:'Новая привычка', editHabit:'Изменить привычку', name:'Название', namePh:'Например: читать 20 минут', description:'Описание', category:'Категория', icon:'Значок', startDate:'Дата начала', endDate:'Дата окончания (необязательно)', reminder:'Время напоминания', repeat:'Повторение', everyDay:'Каждый день', workdays:'Рабочие дни', save:'Сохранить', saved:'Сохранено', cancel:'Отмена', close:'Закрыть',
+  active:'Активные', archive:'Архив', archiveAction:'В архив', restore:'Восстановить', remove:'Удалить', edit:'Изменить', archiveEmpty:'Архив пуст', archiveHint:'История привычек в архиве сохраняется.', deleteTitle:'Удалить привычку навсегда?', deleteText:'Все ежедневные записи также будут удалены. Чтобы сохранить историю, лучше архивировать привычку.', skip:'Пропустить', unskip:'Вернуть',
+  notes:'Заметки дня', wentWell:'Что получилось хорошо', difficult:'Что было сложно', observations:'Наблюдения', calendar:'Календарь', goToday:'К сегодняшнему дню', schedule:'План', completionTime:'Время выполнения', stats:'Статистика', last7:'7 дней', last30:'30 дней', thisMonth:'Этот месяц', allTime:'Всё время', completionRate:'Процент выполнения', currentStreak:'Текущая серия', bestStreak:'Лучшая серия', days:'дн.', dailyChart:'Выполнение по дням', byHabit:'По привычкам', scheduledTotal:'Запланировано', noStats:'Сначала добавьте привычку для статистики', noData:'Нет данных', openBot:'Открыть бота', weekLabel:'Неделя', mainNav:'Главное меню', prevYear:'Предыдущий год', prevMonth:'Предыдущий месяц', nextMonth:'Следующий месяц', nextYear:'Следующий год',
+  unsaved:'Несохранённые изменения', loading:'Загрузка…', error:'Произошла ошибка', retry:'Повторить', openInTelegram:'Откройте приложение в Telegram', openInTelegramText:'Это мини-приложение работает только через вашего Telegram-бота.', hello:'Здравствуйте', allDone:'Всё выполнено. Отлично!', keepGoing:'Продолжайте!',
+  allSections:'Все', addSection:'Добавить раздел', sectionName:'Название раздела', sectionNamePh:'Например: Изучение языков', renameSection:'Переименовать', deleteSection:'Удалить раздел', deleteSectionTitle:'Удалить раздел?', deleteSectionText:'Привычки не удалятся — они останутся без раздела.', noSection:'Без раздела', section:'Раздел', ok:'ОК', sectionEmpty:'На сегодня в этом разделе нет привычек', sectionEmptyText:'Добавьте новую привычку в этот раздел.', addHabit:'Добавить привычку', moreOptions:'Дополнительно', lessOptions:'Меньше', calendarToggle:'Календарь месяца', collapse:'Свернуть',
+  level:'Уровень', levelTitles:['Новичок','Ученик','Устойчивый','Дисциплинированный','Мастер','Наставник','Легенда'], toNext:'до следующего уровня', completions:'выполнений', daysInRow:'дней подряд', achievements:'Достижения', unlocked:'Открыто', locked:'Закрыто', insights:'Аналитика', bestWeekday:'Самый продуктивный день', weakWeekday:'Самый слабый день', needMoreData:'Для анализа нужны данные минимум за 2 недели.', focus:'Фокус-таймер', focusStart:'Старт', focusPause:'Пауза', focusReset:'Сбросить', focusDone:'Время вышло!', markDone:'Отметить выполненным', minutes:'минут',
+  settings:'Настройки', remindersSetting:'Напоминания о привычках', remindersHint:'Бот будет присылать сообщения в заданное время.', morningSetting:'Утренний план (08:00)', morningHint:'Список привычек на начало дня.', eveningSetting:'Вечерний итог (21:00)', eveningHint:'Результат дня и невыполненные привычки.', timezoneLabel:'Часовой пояс', timezoneAuto:'Определить по устройству', botSection:'Telegram-бот', authFailed:'Не удалось войти', reopen:'Открыть снова', code:'Код',
+  weekdayShort:['Вс','Пн','Вт','Ср','Чт','Пт','Сб'], weekdayLong:['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'], months:['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'], stateComplete:'Полностью', statePartial:'Частично', stateMissed:'Пропущено', stateNone:'Нет плана', stateOpen:'В процессе',
+};
+
+export type Language = 'uz' | 'ru';
+export function getLanguage(): Language {
+  if (typeof window === 'undefined') return 'uz';
+  try { return window.localStorage.getItem('discipline-os-language') === 'ru' ? 'ru' : 'uz'; } catch { return 'uz'; }
+}
+export function setLanguage(language: Language) {
+  if (typeof window !== 'undefined') {
+    try { window.localStorage.setItem('discipline-os-language', language); } catch { /* private mode */ }
+  }
+}
+// A getter-based dictionary lets existing UI call sites remain compatible; changing language reloads the UI atomically.
+export const t = new Proxy(uz as Dict, {
+  get(target, key: string | symbol) {
+    if (typeof key !== 'string') return Reflect.get(target, key);
+    const language = getLanguage();
+    if (language === 'ru' && key in ru) return ru[key as keyof Dict] ?? Reflect.get(target, key);
+    return Reflect.get(target, key);
+  },
+});

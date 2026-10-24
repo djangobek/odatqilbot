@@ -1,7 +1,7 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, api, setReauth, setToken } from '@/lib/api';
-import { t } from '@/lib/i18n';
+import { setLanguage, t } from '@/lib/i18n';
 
 export type Me = {
   user: { id: number; displayName: string; timezone: string; language: string; remindersEnabled: boolean; morningDigest: boolean; eveningDigest: boolean; role: 'user' | 'admin' };
@@ -99,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setReauth(() => login().catch(() => false));
         const [m, s] = await Promise.all([api<Me>('/api/me'), api<{ sections: Section[] }>('/api/sections')]);
         setMe(m);
+        if (m.user.language === 'ru' || m.user.language === 'uz') setLanguage(m.user.language);
         setSections(s.sections);
         setState('ready');
       } catch (e) {
@@ -115,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (state !== 'ready') return;
     const refresh = () => {
       if (document.visibilityState !== 'visible') return;
-      api<Me>('/api/me').then((next) => setMe((cur) => (cur && cur.today === next.today && cur.user.timezone === next.user.timezone ? cur : next))).catch(() => {});
+      api<Me>('/api/me').then((next) => setMe((cur) => { if (next.user.language === 'ru' || next.user.language === 'uz') setLanguage(next.user.language); return cur && cur.today === next.today && cur.user.timezone === next.user.timezone && cur.user.language === next.user.language ? cur : next; })).catch(() => {});
     };
     document.addEventListener('visibilitychange', refresh);
     return () => document.removeEventListener('visibilitychange', refresh);

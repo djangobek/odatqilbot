@@ -57,6 +57,7 @@ export const sectionSchema = z.object({
 });
 
 export const settingsSchema = z.object({
+  language: z.enum(['uz', 'ru']).optional(),
   remindersEnabled: z.boolean().optional(),
   morningDigest: z.boolean().optional(),
   eveningDigest: z.boolean().optional(),

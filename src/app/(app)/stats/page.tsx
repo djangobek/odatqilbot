@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { Flame, Lock } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { parseDate, weekday } from '@/lib/dates';
-import { t } from '@/lib/i18n';
+import { getLanguage, t } from '@/lib/i18n';
 import type { StatsResult } from '@/lib/stats';
 
 type R = '7d' | '30d' | 'month' | 'all';
@@ -98,8 +98,8 @@ export default function StatsPage() {
                   return (
                     <li key={b.id} className={clsx('relative rounded-2xl p-3 text-center', ok ? 'bg-accent-soft' : 'bg-raised/60')} title={b.hint}>
                       <p className={clsx('text-3xl', !ok && 'opacity-25 grayscale')} aria-hidden>{b.emoji}</p>
-                      <p className={clsx('mt-1 text-[11px] font-semibold leading-tight', ok ? 'text-accent' : 'text-muted')}>{b.title}</p>
-                      <p className="mt-0.5 text-[10px] leading-tight text-muted">{b.hint}</p>
+                      <p className={clsx('mt-1 text-[11px] font-semibold leading-tight', ok ? 'text-accent' : 'text-muted')}>{getLanguage() === 'ru' ? ({ first: 'Первый шаг', s3: '3 дня', s7: 'Герой недели', s14: '2 недели', s30: 'Мастер месяца', c50: '50 выполнений', c200: '200 выполнений', perfect: 'Идеальный день', perfectweek: 'Идеальная неделя' } as Record<string, string>)[b.id] : b.title}</p>
+                      <p className="mt-0.5 text-[10px] leading-tight text-muted">{getLanguage() === 'ru' ? ({ first: '1 выполнение', s3: 'Серия из 3 дней', s7: 'Серия из 7 дней', s14: 'Серия из 14 дней', s30: 'Серия из 30 дней', c50: '50 выполнений', c200: '200 выполнений', perfect: '100% за день', perfectweek: '100% семь дней подряд' } as Record<string, string>)[b.id] : b.hint}</p>
                       {!ok && <Lock size={12} className="absolute right-2 top-2 text-muted/60" aria-label={t.locked} />}
                     </li>
                   );

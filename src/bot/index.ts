@@ -15,6 +15,7 @@ import { broadcastStatus, claimNext, finishBroadcast, markRecipient, markUserBlo
 import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { HttpError } from '../server/errors';
+import { translateBotText, translateKeyboard } from './i18n';
 
 const EXIT_CONFIG = 78; // tells the supervisor not to restart-loop on a configuration error
 
@@ -33,6 +34,37 @@ if (process.env.NODE_ENV === 'production') {
 
 const db = getDb();
 const bot = new Bot(token);
+const callbackLanguages = new Map<string, string>();
+bot.use(async (ctx, next) => {
+  const callbackId = ctx.callbackQuery?.id;
+  if (callbackId && ctx.from) {
+    try {
+      const [recipient] = await db.select({ language: users.language }).from(users).where(eq(users.telegramId, ctx.from.id)).limit(1);
+      if (recipient) callbackLanguages.set(callbackId, recipient.language);
+    } catch { /* Translation lookup is best-effort; command handlers remain available. */ }
+  }
+  try { await next(); } finally { if (callbackId) callbackLanguages.delete(callbackId); }
+});
+// Translate every bot-authored outgoing message for the recipient's saved language.
+// Translation is applied at the Telegram API boundary so reminders, digests, callback edits,
+// keyboards and command replies all use the same language without duplicating business logic.
+bot.api.config.use(async (prev, method, payload, signal) => {
+  const p = payload as Record<string, unknown>;
+  const chatId = typeof p.chat_id === 'number' ? p.chat_id : typeof p.chat_id === 'string' && /^\d+$/.test(p.chat_id) ? Number(p.chat_id) : undefined;
+  const callbackId = typeof p.callback_query_id === 'string' ? p.callback_query_id : undefined;
+  const language = chatId ? (await db.select({ language: users.language }).from(users).where(eq(users.telegramId, chatId)).limit(1).then((rows) => rows[0]?.language).catch(() => undefined)) : callbackId ? callbackLanguages.get(callbackId) : undefined;
+  if (language === 'ru' && ['sendMessage', 'editMessageText', 'editMessageCaption', 'answerCallbackQuery'].includes(method)) {
+    try {
+      if (typeof p.text === 'string') p.text = translateBotText(p.text, 'ru');
+      if (typeof p.caption === 'string') p.caption = translateBotText(p.caption, 'ru');
+      if (typeof p.description === 'string') p.description = translateBotText(p.description, 'ru');
+      if (p.reply_markup) p.reply_markup = translateKeyboard(p.reply_markup, 'ru');
+    } catch (error) {
+      console.warn('[bot:i18n] Translation lookup failed; sending original message:', error instanceof Error ? error.message : error);
+    }
+  }
+  return prev(method, payload, signal);
+});
 const appUrl = resolveWebAppUrl();
 const SCAN_EVERY_MS = 20_000;
 const SEND_GAP_MS = 60; // stay far below Telegram's ~30 msg/sec limit
@@ -56,8 +88,9 @@ function homeKeyboard() {
   if (main) {
     kb.webApp('📱 Ilovani ochish', main).row();
     kb.webApp('🌱 Odatlar', webAppLink('/habits')!).webApp('📊 Statistika', webAppLink('/stats')!).row();
-    kb.webApp('⚙️ Sozlamalar', webAppLink('/settings')!);
+    kb.webApp('⚙️ Sozlamalar', webAppLink('/settings')!).row();
   }
+  kb.text('🌐 Til / Язык', 'lang:menu');
   return nonEmpty(kb);
 }
 
@@ -208,6 +241,7 @@ bot.command('help', async (ctx) => {
     '/streak — seriya, daraja va yutuqlar\n' +
     '/motivation — kunlik motivatsiya\n' +
     '/settings — eslatma, ertalabki reja, kechki xulosa\n' +
+    '/language — tilni o‘zgartirish / сменить язык\n' +
     '/timezone — vaqt mintaqasi (<code>/timezone Asia/Tashkent</code>)\n' +
     '/help — yordam\n\n' +
     '💡 Qisqa yo‘l: xabarni <b>+</b> bilan boshlang — <code>+ Suv ichish 09:00</code>',
@@ -269,8 +303,9 @@ bot.command('week', async (ctx) => {
     await ctx.reply('Hali odat yo‘q. Birinchi odatni qo‘shing: <code>/add Kitob 21:00</code> 🌱', HTML);
     return;
   }
+  const weekDays = user.language === 'ru' ? ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'] : WD_SHORT;
   const rows = s.daily.map((d) => {
-    const wd = WD_SHORT[new Date(`${d.date}T00:00:00Z`).getUTCDay()];
+    const wd = weekDays[new Date(`${d.date}T00:00:00Z`).getUTCDay()];
     const glyph = d.percent === null ? '·' : SPARK[Math.min(7, Math.floor((d.percent / 100) * 7.99))];
     return `${wd} ${glyph.repeat(3)} ${d.percent === null ? '–' : `${d.percent}%`}`;
   });
@@ -315,10 +350,38 @@ function settingsView(u: UserRow) {
     .text(row(u.remindersEnabled, 'Odat eslatmalari'), 's:r').row()
     .text(row(u.morningDigest, 'Ertalabki reja (08:00)'), 's:m').row()
     .text(row(u.eveningDigest, 'Kechki xulosa (21:00)'), 's:e').row();
+  kb.row().text(u.language === 'ru' ? '🌐 Язык: Русский' : '🌐 Til: O‘zbekcha', 'lang:toggle');
   const app = webAppLink('/settings');
-  if (app) kb.webApp('⚙️ Ilovada sozlash', app);
-  return { text: `⚙️ <b>Sozlamalar</b>\n\nVaqt mintaqasi: <b>${esc(u.timezone)}</b>\nTugmani bosib yoqing yoki o‘chiring.`, kb };
+  if (app) kb.webApp(u.language === 'ru' ? '⚙️ Настройки в приложении' : '⚙️ Ilovada sozlash', app);
+  return { text: u.language === 'ru' ? `⚙️ <b>Настройки</b>\n\nЧасовой пояс: <b>${esc(u.timezone)}</b>\nНажмите кнопку, чтобы включить или отключить параметр.` : `⚙️ <b>Sozlamalar</b>\n\nVaqt mintaqasi: <b>${esc(u.timezone)}</b>\nTugmani bosib yoqing yoki o‘chiring.`, kb };
 }
+
+bot.command('language', async (ctx) => {
+  const user = await ensure(ctx);
+  if (!user) return;
+  const kb = new InlineKeyboard()
+    .text('🇺🇿 O‘zbekcha', 'lang:uz')
+    .text('🇷🇺 Русский', 'lang:ru');
+  await ctx.reply(user.language === 'ru' ? '🌐 Выберите язык бота и приложения:' : '🌐 Bot va ilova tilini tanlang:', { reply_markup: kb });
+});
+
+bot.callbackQuery(/^lang:(uz|ru|toggle|menu)$/, async (ctx) => {
+  const user = await ensure(ctx);
+  if (!user) return ctx.answerCallbackQuery();
+  const value = (ctx.match as RegExpMatchArray)[1];
+  if (value === 'menu') {
+    const kb = new InlineKeyboard().text('🇺🇿 O‘zbekcha', 'lang:uz').text('🇷🇺 Русский', 'lang:ru');
+    await ctx.reply(user.language === 'ru' ? '🌐 Выберите язык бота и приложения:' : '🌐 Bot va ilova tilini tanlang:', { reply_markup: kb });
+    return;
+  }
+  const language = value === 'toggle' ? (user.language === 'ru' ? 'uz' : 'ru') : value as 'uz' | 'ru';
+  const next = await updateSettings(db, user.id, { language });
+  await ctx.answerCallbackQuery({ text: language === 'ru' ? 'Язык изменён на русский' : 'Til o‘zbekchaga o‘zgartirildi' });
+  const v = settingsView(next);
+  await ctx.editMessageText(v.text, { ...HTML, reply_markup: v.kb }).catch(async () => {
+    await ctx.reply(language === 'ru' ? 'Язык сохранён. Используйте /settings для настроек.' : 'Til saqlandi. Sozlamalar uchun /settings buyrug‘ini yuboring.').catch(() => {});
+  });
+});
 
 bot.command('settings', async (ctx) => {
   const user = await ensure(ctx);
@@ -566,19 +629,20 @@ async function main() {
   if (!process.env.BOT_USERNAME) console.log(`[bot] tip: set BOT_USERNAME=${bot.botInfo.username} so the web app can link back to the bot`);
 
   await bot.api.setMyCommands([
-    { command: 'start', description: 'Boshlash va ilovani ochish' },
-    { command: 'today', description: 'Bugungi odatlar' },
-    { command: 'add', description: 'Tez odat qo‘shish' },
-    { command: 'sections', description: 'Bo‘limlar' },
-    { command: 'week', description: '7 kunlik grafik' },
-    { command: 'streak', description: 'Seriya va daraja' },
-    { command: 'motivation', description: 'Kunlik motivatsiya' },
-    { command: 'settings', description: 'Eslatma va xulosa sozlamalari' },
-    { command: 'stats', description: 'Oxirgi 7 kun statistikasi' },
-    { command: 'timezone', description: 'Vaqt mintaqasi' },
-    { command: 'help', description: 'Yordam' },
+    { command: 'start', description: 'Boshlash / Начать' },
+    { command: 'today', description: 'Bugungi odatlar / Сегодня' },
+    { command: 'add', description: 'Odat qo‘shish / Добавить привычку' },
+    { command: 'sections', description: 'Bo‘limlar / Разделы' },
+    { command: 'week', description: 'Hafta grafigi / График недели' },
+    { command: 'streak', description: 'Seriya / Серия и уровень' },
+    { command: 'motivation', description: 'Motivatsiya / Мотивация дня' },
+    { command: 'settings', description: 'Sozlamalar / Настройки' },
+    { command: 'language', description: 'Tilni o‘zgartirish / Сменить язык' },
+    { command: 'stats', description: 'Statistika / Статистика' },
+    { command: 'timezone', description: 'Vaqt mintaqasi / Часовой пояс' },
+    { command: 'help', description: 'Yordam / Помощь' },
   ]).catch((e) => console.warn('[bot] setMyCommands failed:', e.message));
-  await bot.api.setMyShortDescription('Odatlar, eslatmalar va statistika — shaxsiy intizom yordamchingiz.').catch(() => {});
+  await bot.api.setMyShortDescription('Odatlar va statistika / Привычки и статистика — Discipline OS.').catch(() => {});
   if (appUrl) {
     await bot.api.setChatMenuButton({ menu_button: { type: 'web_app', text: 'Discipline OS', web_app: { url: appUrl } } })
       .catch((e) => console.warn('[bot] setChatMenuButton failed:', e.message));

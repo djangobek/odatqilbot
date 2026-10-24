@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { useMe, type Me } from '@/components/AuthProvider';
 import { api } from '@/lib/api';
 import { success, tap } from '@/lib/haptics';
-import { t } from '@/lib/i18n';
+import { getLanguage, setLanguage, t, type Language } from '@/lib/i18n';
 
 type Key = 'remindersEnabled' | 'morningDigest' | 'eveningDigest';
 type Cfg = { botUrl: string | null; supportUrl: string | null; channelUrl: string | null };
@@ -14,6 +14,17 @@ export default function SettingsPage() {
   const { me, setMe, toast } = useMe();
   const [busy, setBusy] = useState<string | null>(null);
   const [cfg, setCfg] = useState<Cfg | null>(null);
+  const [language, setLanguageState] = useState<Language>('uz');
+  useEffect(() => { setLanguageState(getLanguage()); }, []);
+  async function changeLanguage(next: Language) {
+    if (next === language) return;
+    setBusy('language');
+    try {
+      await api<Me>('/api/me', { method: 'PATCH', body: { language: next } });
+      setLanguage(next); setLanguageState(next); location.reload();
+    } catch (e) { toast((e as Error).message, 'err'); }
+    finally { setBusy(null); }
+  }
   useEffect(() => { api<Cfg>('/api/config', { auth: false }).then(setCfg).catch(() => {}); }, []);
 
   async function patch(body: Partial<Record<Key, boolean>> & { timezone?: string }, id: string) {
@@ -53,6 +64,17 @@ export default function SettingsPage() {
             </button>
           );
         })}
+      </section>
+
+      <section className="mt-4 rounded-xl2 bg-surface px-4 py-3.5">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-raised text-muted"><Globe size={20} /></span>
+          <div className="min-w-0 flex-1"><p className="font-semibold">{language === 'ru' ? 'Язык приложения' : 'Ilova tili'}</p><p className="text-sm text-muted">{language === 'ru' ? 'Выберите язык интерфейса' : 'Interfeys tilini tanlang'}</p></div>
+          <div className="flex rounded-full bg-raised p-1" aria-label={language === 'ru' ? 'Язык приложения' : 'Ilova tili'}>
+            <button type="button" disabled={busy === 'language'} onClick={() => changeLanguage('uz')} aria-pressed={language === 'uz'} className={clsx('rounded-full px-3 py-2 text-sm font-semibold', language === 'uz' ? 'bg-accent text-black' : 'text-muted')}>O‘zbekcha</button>
+            <button type="button" disabled={busy === 'language'} onClick={() => changeLanguage('ru')} aria-pressed={language === 'ru'} className={clsx('rounded-full px-3 py-2 text-sm font-semibold', language === 'ru' ? 'bg-accent text-black' : 'text-muted')}>Русский</button>
+          </div>
+        </div>
       </section>
 
       <section className="mt-4 rounded-xl2 bg-surface px-4 py-3.5">
